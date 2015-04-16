@@ -29,7 +29,7 @@ Let's see a processing pipe example:
 ```elixir
 Adap.Piper.defpipe ColorPipe, [{ColorPipe.Rules,[]}]
 defmodule JSONMap do
-  use Adap.StateServer, ttl: 1_000
+  use Adap.Unit.Simple, ttl: 1_000
   def init(mapping), do: 
     {:ok,File.read!("/#{mapping}.json") |> JSON.decode!}
   def node("color"), do: :"user@jsonserver1"
