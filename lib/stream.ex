@@ -31,7 +31,7 @@ defmodule Adap.Stream do
   alias Adap.Stream.Emitter
 
   def new(stream,emit_mod,chunk_size \\ 200), do:
-    Stream.resource(fn->start!(stream,emit_mod,chunk_size) end, &{next(&1),&1},fn _-> end)
+    Stream.resource(fn->start!(stream,emit_mod,chunk_size) end, &{next(&1),&1},&halt/1)
 
   def emit(sink,elems) when is_list(elems), do:
     GenServer.cast(sink,{:new_elems,elems})
@@ -45,6 +45,7 @@ defmodule Adap.Stream do
     ({:ok,pid} = GenServer.start_link(__MODULE__,{elems,emit_mod,chunk_size});pid)
 
   defp next(sink), do: GenServer.call(sink,:next,:infinity)
+  defp halt(sink), do: GenServer.cast(sink,:halt)
 
   ###### Stream Sink GenServer callbacks ####
   use GenServer
@@ -83,6 +84,11 @@ defmodule Adap.Stream do
   def handle_cast({:new_elems,elems},state), do:
     {:noreply,%{state| emitters: [Emitter.start!(elems,self)|state.emitters]}}
 
+  def handle_cast(:halt,%{emitters: emitters}=state) do
+    for emitter<-emitters, do: Emitter.halt(emitter)
+    {:stop,:normal,state}
+  end
+
   defp emit_chunk(%{emitters: [], count: c}=state,rem), do: 
     %{state|count: c+rem}
   defp emit_chunk(%{emitters: [emitter|rest]=emitters,emit_mod: emit_mod}=state,rem) do
@@ -97,9 +103,11 @@ defmodule Adap.Stream.Emitter do
   use GenServer
 
   def start!(elems,sink), do:
-    ({:ok,pid}=GenServer.start_link(__MODULE__,reduce_fn(elems,sink)); pid)
+    ({:ok,pid}=GenServer.start_link(__MODULE__,{elems,sink}); pid)
   def next(emitter,n,emit_mod), do:
     GenServer.call(emitter,{:next,n,emit_mod},:infinity)
+  def halt(emitter), do:
+    GenServer.cast(emitter,:halt)
 
   def handle_call({:next,n,emit_mod},_,cont) do
     case cont.({:cont,{n,emit_mod}}) do
@@ -107,6 +115,12 @@ defmodule Adap.Stream.Emitter do
       {:done,{rem,_}}->{:stop,:normal,n-rem,[]}
     end
   end
+  def handle_cast(:halt,cont) do
+    cont.({:halt,[]})
+    {:stop,:normal,[]}
+  end
+  def init({elems,sink}), do:
+    {:ok,reduce_fn(elems,sink)}
   defp reduce_fn(elems,sink) do
     &Enumerable.reduce(elems,&1,fn 
       elem,{1,emit}-> spawn_link(fn->emit.do_emit(sink,elem)end); {:suspend,{0,emit}}
