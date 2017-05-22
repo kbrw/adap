@@ -4,7 +4,7 @@
 Create a data stream across your information systems to query,
 augment and transform data according to Elixir matching rules.
 
-[![Build Status](https://travis-ci.org/awetzel/adap.svg?branch=master)](https://travis-ci.org/awetzel/adap)
+[![Build Status](https://travis-ci.org/kbrw/adap.svg?branch=master)](https://travis-ci.org/kbrw/adap)
 
 See the [generated documentation](http://hexdocs.pm/adap) for more detailed explanations.
 
